@@ -147,8 +147,9 @@ class Op {
 
   toString() {
     if (!this.opcode) throw new TypeError('null op');
+    if (typeof this.attribs !== 'string') throw new TypeError('attribs must be a string');
     const l = this.lines ? `|${exports.numToString(this.lines)}` : '';
-    return (this.attribs || '') + l + this.opcode + exports.numToString(this.chars);
+    return this.attribs + l + this.opcode + exports.numToString(this.chars);
   }
 }
 exports.Op = Op;
