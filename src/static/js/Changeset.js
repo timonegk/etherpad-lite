@@ -311,12 +311,28 @@ const copyOp = (op1, op2 = new Op()) => Object.assign(op2, op1);
 
 /**
  * Serializes a sequence of Ops.
- *
- * @typedef {object} OpAssembler
- * @property {Function} append -
- * @property {Function} clear -
- * @property {Function} toString -
  */
+class OpAssembler {
+  constructor() {
+    this.clear();
+  }
+
+  /**
+   * @param {Op} op - Operation to add. Ownership remains with the caller.
+   */
+  append(op) {
+    assert(op instanceof Op, 'argument must be an instance of Op');
+    this._serialized += op.toString();
+  }
+
+  toString() {
+    return this._serialized;
+  }
+
+  clear() {
+    this._serialized = '';
+  }
+}
 
 /**
  * Efficiently merges consecutive operations that are mergeable, ignores no-ops, and drops final
@@ -597,28 +613,7 @@ exports.mergingOpAssembler = () => {
 /**
  * @returns {OpAssembler}
  */
-exports.opAssembler = () => {
-  let serialized = '';
-
-  /**
-   * @param {Op} op - Operation to add. Ownership remains with the caller.
-   */
-  const append = (op) => {
-    assert(op instanceof Op, 'argument must be an instance of Op');
-    serialized += op.toString();
-  };
-
-  const toString = () => serialized;
-
-  const clear = () => {
-    serialized = '';
-  };
-  return {
-    append,
-    toString,
-    clear,
-  };
-};
+exports.opAssembler = () => new OpAssembler();
 
 /**
  * A custom made String Iterator
