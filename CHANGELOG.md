@@ -42,6 +42,7 @@
     * `opIterator()`: Deprecated in favor of the new `deserializeOps()`
       generator function. Also, the unused start index parameter has been
       removed, as has the unused `lastIndex()` method on the returned object.
+    * `opAssembler()`: Deprecated in favor of the new `serializeOps()` function.
     * `smartOpAssembler()`: The returned object's `appendOpWithText()` method is
       deprecated without a replacement available to plugins (if you need one,
       let us know and we can make the private `opsFromText()` function public).
