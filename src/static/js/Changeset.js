@@ -207,7 +207,7 @@ exports.deserializeOps = function* (ops) {
 /**
  * Iterator over a changeset's operations.
  *
- * Note: This class does NOT implement the ECMAScript iterable or iterator protocols.
+ * Note: This class implements the ECMAScript iterable protocol, but NOT the iterator protocol.
  *
  * @deprecated Use `deserializeOps` instead.
  */
@@ -244,6 +244,23 @@ class OpIter {
       clearOp(opOut);
     }
     return opOut;
+  }
+
+  /**
+   * Implements the ECMAScript iterable protocol.
+   *
+   * @returns Iterator over the operations.
+   */
+  [Symbol.iterator]() {
+    return {
+      /**
+       * Implements the ECMAScript iterator protocol.
+       */
+      next: () => {
+        const done = !this.hasNext();
+        return {done, value: done ? undefined : this.next()};
+      },
+    };
   }
 }
 
