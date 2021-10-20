@@ -170,7 +170,7 @@ describe('easysync', function () {
     expect(assem.toString()).to.equal('*3*4*5|3+f*1*4*5|1+1*1*4*5+4');
   });
 
-  xit('smartOpAssembler clear should empty internal assemblers', async function () {
+  it('smartOpAssembler clear should empty internal assemblers', async function () {
     const x = '-c*3*4+6|3=az*asdf0*1*2*3+1=1-1+1*0+1=1-1+1|c=c-1';
     const iter = Changeset.opIterator(x);
     const assem = Changeset.smartOpAssembler();

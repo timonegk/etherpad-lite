@@ -590,9 +590,11 @@ exports.stringAssembler = () => {
   };
 
   const toString = () => pieces.join('');
+  const clear = () => pieces.length = 0;
   return {
     append,
     toString,
+    clear,
   };
 };
 
