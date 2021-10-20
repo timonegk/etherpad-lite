@@ -424,6 +424,9 @@ exports.mergingOpAssembler = () => {
   // ops immediately after it.
   let bufOpAdditionalCharsAfterNewline = 0;
 
+  /**
+   * @param {boolean} [isEndDocument]
+   */
   const flush = (isEndDocument) => {
     if (bufOp.opcode) {
       if (isEndDocument && bufOp.opcode === '=' && !bufOp.attribs) {
@@ -736,7 +739,7 @@ exports.textLinesMutator = (lines) => {
 
   /**
    * Indicates if curLine is already in the splice. This is necessary because the last element in
-   * curSplice is curLine when this line is currently worked on (e.g. when skipping are inserting).
+   * curSplice is curLine when this line is currently worked on (e.g. when skipping or inserting)
    *
    * TODO(doc) why aren't removals considered?
    *
@@ -761,7 +764,7 @@ exports.textLinesMutator = (lines) => {
    * It will skip some newlines by putting them into the splice.
    *
    * @param {number} L -
-   * @param {boolean} includeInSplice - indicates if attributes are present
+   * @param {boolean} includeInSplice - indicates that attributes are present
    */
   const skipLines = (L, includeInSplice) => {
     if (L) {
@@ -907,7 +910,7 @@ exports.textLinesMutator = (lines) => {
           /** @type {string} */
           const theLine = curSplice[sline];
           const lineCol = curCol;
-          // insert the first new line
+          // insert the chars up to curCol and the first new line
           curSplice[sline] = theLine.substring(0, lineCol) + newLines[0];
           curLine++;
           newLines.splice(0, 1);
@@ -1306,6 +1309,15 @@ exports.applyToAttribution = (cs, astr, pool) => {
       (op1, op2, opOut) => exports._slicerZipperFunc(op1, op2, opOut, pool));
 };
 
+/**
+ * Applies a changeset to an array of attribution lines.
+ * Lines are changed in-place.
+ *
+ * @param {string} cs Changeset
+ * @param {Array.<string>} lines Attribution lines
+ * @pool {AttribPool} pool Pool
+ *
+ */
 exports.mutateAttributionLines = (cs, lines, pool) => {
   const unpacked = exports.unpack(cs);
   const csIter = exports.opIterator(unpacked.ops);
@@ -1314,24 +1326,49 @@ exports.mutateAttributionLines = (cs, lines, pool) => {
   // treat the attribution lines as text lines, mutating a line at a time
   const mut = exports.textLinesMutator(lines);
 
-  /** @type {?OpIter} */
+  /**
+   * a line in lines array that is currently changed
+   *
+   * @type {?OpIter}
+   *
+   */
   let lineIter = null;
 
+  /**
+   * Returns false if we are on the last attribution line in `lines` and
+   * there is no additional op in that line.
+   *
+   * @returns {boolean} True if there are more ops to go through
+   */
   const isNextMutOp = () => (lineIter && lineIter.hasNext()) || mut.hasMore();
 
+  /**
+   * Puts the next op from lineIter into destOp. Enters a new attribution line in `lines`
+   * if lineIter finished.
+   *
+   * @param {Opcode} destOp
+   */
   const nextMutOp = (destOp) => {
     if ((!(lineIter && lineIter.hasNext())) && mut.hasMore()) {
+      // There are more attribution lines in `lines` to do AND
+      // either we just started so lineIter is still null or no more ops in current lineIter
       const line = mut.removeLines(1);
       lineIter = exports.opIterator(line);
     }
     if (lineIter && lineIter.hasNext()) {
+      // put next op from lineIter into destOp
       lineIter.next(destOp);
     } else {
+      // lineIter finished, reset destOp
       destOp.opcode = '';
     }
   };
   let lineAssem = null;
 
+  /**
+   * Appends an op to lineAssem
+   * In case lineAssem includes one single newline, add it to `lines` mutator
+   */
   const outputMutOp = (op) => {
     if (!lineAssem) {
       lineAssem = exports.mergingOpAssembler();
@@ -1350,17 +1387,20 @@ exports.mutateAttributionLines = (cs, lines, pool) => {
   const opOut = exports.newOp();
   while (csOp.opcode || csIter.hasNext() || attOp.opcode || isNextMutOp()) {
     if ((!csOp.opcode) && csIter.hasNext()) {
+      // more ops in cs and csOp done
       csIter.next(csOp);
     }
     if ((!csOp.opcode) && (!attOp.opcode) && (!lineAssem) && (!(lineIter && lineIter.hasNext()))) {
       break; // done
     } else if (csOp.opcode === '=' && csOp.lines > 0 && (!csOp.attribs) &&
         (!attOp.opcode) && (!lineAssem) && (!(lineIter && lineIter.hasNext()))) {
-      // skip multiple lines; this is what makes small changes not order of the document size
+      // skip multiple lines without attributes; this is what makes small changes not order of the
+      // document size
       mut.skipLines(csOp.lines);
       csOp.opcode = '';
     } else if (csOp.opcode === '+') {
       if (csOp.lines > 1) {
+        // copy the first line from csOp to opOut
         const firstLineLen = csBank.indexOf('\n', csBankIndex) + 1 - csBankIndex;
         exports.copyOp(csOp, opOut);
         csOp.chars -= firstLineLen;
@@ -1368,6 +1408,7 @@ exports.mutateAttributionLines = (cs, lines, pool) => {
         opOut.lines = 1;
         opOut.chars = firstLineLen;
       } else {
+        // either one or no newline in + csOp, copy to opOut and reset csOp
         exports.copyOp(csOp, opOut);
         csOp.opcode = '';
       }
@@ -1813,7 +1854,8 @@ exports.copyAText = (atext1, atext2) => {
 };
 
 /**
- * Append the set of operations from atext to an assembler.
+ * Append the set of operations from atext to an assembler
+ * Strips final newline.
  *
  * @param {AText} atext -
  * @param assem - Assembler like SmartOpAssembler TODO add desc

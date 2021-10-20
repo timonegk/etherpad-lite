@@ -226,6 +226,6 @@ describe('easysync', function () {
     testAppendATextToAssembler(8, {
       text: '\n\n\nfoo\n',
       attribs: '|2+2*x|2+5',
-    }, '|2+2*x|1+1*x+3'); //TODO: why isn't this |2+2*x|1+4 ?
+    }, '|2+2*x|1+1*x+3');
   });
 });
