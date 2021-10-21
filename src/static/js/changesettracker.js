@@ -153,27 +153,27 @@ const makeChangesetTracker = (scheduler, apool, aceCallbacksProvider) => {
 
           // Replace all added 'author' attribs with the value of the current user
           const cs = Changeset.unpack(userChangeset);
-          const assem = Changeset.mergingOpAssembler();
+          const ops = (function* () {
+            for (const op of Changeset.deserializeOps(cs.ops)) {
+              if (op.opcode === '+') {
+                let newAttrs = '';
 
-          for (const op of Changeset.deserializeOps(cs.ops)) {
-            if (op.opcode === '+') {
-              let newAttrs = '';
-
-              op.attribs.split('*').forEach((attrNum) => {
-                if (!attrNum) return;
-                const attr = apool.getAttrib(parseInt(attrNum, 36));
-                if (!attr) return;
-                if ('author' === attr[0]) {
-                  // replace that author with the current one
-                  newAttrs += `*${authorAttr}`;
-                } else { newAttrs += `*${attrNum}`; } // overtake all other attribs as is
-              });
-              op.attribs = newAttrs;
+                op.attribs.split('*').forEach((attrNum) => {
+                  if (!attrNum) return;
+                  const attr = apool.getAttrib(parseInt(attrNum, 36));
+                  if (!attr) return;
+                  if ('author' === attr[0]) {
+                    // replace that author with the current one
+                    newAttrs += `*${authorAttr}`;
+                  } else { newAttrs += `*${attrNum}`; } // overtake all other attribs as is
+                });
+                op.attribs = newAttrs;
+              }
+              yield op;
             }
-            assem.append(op);
-          }
-          assem.endDocument();
-          userChangeset = Changeset.pack(cs.oldLen, cs.newLen, assem.toString(), cs.charBank);
+          })();
+          const serializedOps = Changeset.serializeOps(Changeset.squashOps(ops, true));
+          userChangeset = Changeset.pack(cs.oldLen, cs.newLen, serializedOps, cs.charBank);
           Changeset.checkRep(userChangeset);
         }
         if (Changeset.isIdentity(userChangeset)) toSubmit = null;
