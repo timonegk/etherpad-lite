@@ -450,7 +450,7 @@ class MergingOpAssembler {
  * @returns {Generator<Op, number>} The done value indicates how much the sequence of operations
  *     changes the length of the document (in characters).
  */
-const canonicalizeOps = function* (ops, finalize) {
+exports.canonicalizeOps = function* (ops, finalize) {
   let minusOps = [];
   let plusOps = [];
   let keepOps = [];
@@ -533,6 +533,8 @@ const opsFromText = function* (opcode, text, attribs = '', pool = null) {
  *   - strips final "="
  *   - ignores 0-length changes
  *   - reorders consecutive + and - (which MergingOpAssembler doesn't do)
+ *
+ * @deprecated Use `canonicalizeOps` with `serializeOps` instead.
  */
 class SmartOpAssembler {
   constructor() {
@@ -541,7 +543,7 @@ class SmartOpAssembler {
 
   _serialize(finalize) {
     this._serialized = exports.serializeOps((function* () {
-      this._lengthChange = yield* canonicalizeOps(this._ops, finalize);
+      this._lengthChange = yield* exports.canonicalizeOps(this._ops, finalize);
     }).call(this));
   }
 
@@ -599,33 +601,32 @@ exports.checkRep = (cs) => {
   const unpacked = exports.unpack(cs);
   const oldLen = unpacked.oldLen;
   const newLen = unpacked.newLen;
-  const ops = unpacked.ops;
   let charBank = unpacked.charBank;
 
-  const assem = new SmartOpAssembler();
   let oldPos = 0;
   let calcNewLen = 0;
   let numInserted = 0;
-  for (const o of exports.deserializeOps(ops)) {
-    switch (o.opcode) {
-      case '=':
-        oldPos += o.chars;
-        calcNewLen += o.chars;
-        break;
-      case '-':
-        oldPos += o.chars;
-        assert(oldPos <= oldLen, `${oldPos} > ${oldLen} in ${cs}`);
-        break;
-      case '+':
-      {
-        calcNewLen += o.chars;
-        numInserted += o.chars;
-        assert(calcNewLen <= newLen, `${calcNewLen} > ${newLen} in ${cs}`);
-        break;
+  const ops = (function* () {
+    for (const o of exports.deserializeOps(unpacked.ops)) {
+      switch (o.opcode) {
+        case '=':
+          oldPos += o.chars;
+          calcNewLen += o.chars;
+          break;
+        case '-':
+          oldPos += o.chars;
+          assert(oldPos <= oldLen, `${oldPos} > ${oldLen} in ${cs}`);
+          break;
+        case '+':
+          calcNewLen += o.chars;
+          numInserted += o.chars;
+          assert(calcNewLen <= newLen, `${calcNewLen} > ${newLen} in ${cs}`);
+          break;
       }
+      yield o;
     }
-    assem.append(o);
-  }
+  })();
+  const serializedOps = exports.serializeOps(exports.canonicalizeOps(ops, true));
 
   calcNewLen += oldLen - oldPos;
   charBank = charBank.substring(0, numInserted);
@@ -633,17 +634,21 @@ exports.checkRep = (cs) => {
     charBank += '?';
   }
 
-  assem.endDocument();
-  const normalized = exports.pack(oldLen, calcNewLen, assem.toString(), charBank);
+  const normalized = exports.pack(oldLen, calcNewLen, serializedOps, charBank);
   assert(normalized === cs, 'Invalid changeset (checkRep failed)');
 
   return cs;
 };
 
 /**
+ * @deprecated Use `canonicalizeOps` with `serializeOps` instead.
  * @returns {SmartOpAssembler}
  */
-exports.smartOpAssembler = () => new SmartOpAssembler();
+exports.smartOpAssembler = () => {
+  warnDeprecated(
+      'Changeset.smartOpAssembler() is deprecated; use Changeset.canonicalizeOps() instead');
+  return new SmartOpAssembler();
+};
 
 /**
  * @deprecated Use `squashOps` with `serializeOps` instead.
@@ -1089,22 +1094,22 @@ class TextLinesMutator {
  * @returns {string} the integrated changeset
  */
 const applyZip = (in1, in2, func) => {
-  const ops1 = exports.deserializeOps(in1);
-  const ops2 = exports.deserializeOps(in2);
-  let next1 = ops1.next();
-  let next2 = ops2.next();
-  const assem = new SmartOpAssembler();
-  while (!next1.done || !next2.done) {
-    if (!next1.done && !next1.value.opcode) next1 = ops1.next();
-    if (!next2.done && !next2.value.opcode) next2 = ops2.next();
-    if (next1.value == null) next1.value = new Op();
-    if (next2.value == null) next2.value = new Op();
-    if (!next1.value.opcode && !next2.value.opcode) break;
-    const opOut = func(next1.value, next2.value);
-    if (opOut && opOut.opcode) assem.append(opOut);
-  }
-  assem.endDocument();
-  return assem.toString();
+  const ops = (function* () {
+    const ops1 = exports.deserializeOps(in1);
+    const ops2 = exports.deserializeOps(in2);
+    let next1 = ops1.next();
+    let next2 = ops2.next();
+    while (!next1.done || !next2.done) {
+      if (!next1.done && !next1.value.opcode) next1 = ops1.next();
+      if (!next2.done && !next2.value.opcode) next2 = ops2.next();
+      if (next1.value == null) next1.value = new Op();
+      if (next2.value == null) next2.value = new Op();
+      if (!next1.value.opcode && !next2.value.opcode) break;
+      const opOut = func(next1.value, next2.value);
+      if (opOut && opOut.opcode) yield opOut;
+    }
+  })();
+  return exports.serializeOps(exports.canonicalizeOps(ops, true));
 };
 
 /**
@@ -1584,15 +1589,13 @@ exports.makeSplice = (oldFullText, spliceStart, numRemoved, newText, optNewTextA
   const oldText = oldFullText.substring(spliceStart, spliceStart + numRemoved);
   const newLen = oldLen + newText.length - oldText.length;
 
-  const assem = new SmartOpAssembler();
   const ops = (function* () {
     yield* opsFromText('=', oldFullText.substring(0, spliceStart));
     yield* opsFromText('-', oldText);
     yield* opsFromText('+', newText, optNewTextAPairs, pool);
   })();
-  for (const op of ops) assem.append(op);
-  assem.endDocument();
-  return exports.pack(oldLen, newLen, assem.toString(), newText);
+  const serializedOps = exports.serializeOps(exports.canonicalizeOps(ops, true));
+  return exports.pack(oldLen, newLen, serializedOps, newText);
 };
 
 /**
@@ -1714,11 +1717,8 @@ exports.moveOpsToNewPool = (cs, oldPool, newPool) => {
  * @param {string} text - text to insert
  * @returns {string}
  */
-exports.makeAttribution = (text) => {
-  const assem = new SmartOpAssembler();
-  for (const op of opsFromText('+', text)) assem.append(op);
-  return assem.toString();
-};
+exports.makeAttribution =
+    (text) => exports.serializeOps(exports.canonicalizeOps(opsFromText('+', text), false));
 
 /**
  * Iterates over attributes in exports, attribution string, or attribs property of an op and runs
@@ -1955,8 +1955,7 @@ exports.attribsAttributeValue = (attribs, key, pool) => {
  * @returns {Builder}
  */
 exports.builder = (oldLen) => {
-  const assem = new SmartOpAssembler();
-  const o = new Op();
+  const ops = [];
   const charBank = exports.stringAssembler();
 
   const self = {
@@ -1971,11 +1970,11 @@ exports.builder = (oldLen) => {
      * @returns {Builder} this
      */
     keep: (N, L, attribs, pool) => {
-      o.opcode = '=';
+      const o = new Op('=');
       o.attribs = (attribs && exports.makeAttribsString('=', attribs, pool)) || '';
       o.chars = N;
       o.lines = (L || 0);
-      assem.append(o);
+      ops.push(o);
       return self;
     },
 
@@ -1988,7 +1987,7 @@ exports.builder = (oldLen) => {
      * @returns {Builder} this
      */
     keepText: (text, attribs, pool) => {
-      for (const op of opsFromText('=', text, attribs, pool)) assem.append(op);
+      ops.push(...opsFromText('=', text, attribs, pool));
       return self;
     },
 
@@ -2001,7 +2000,7 @@ exports.builder = (oldLen) => {
      * @returns {Builder} this
      */
     insert: (text, attribs, pool) => {
-      for (const op of opsFromText('+', text, attribs, pool)) assem.append(op);
+      ops.push(...opsFromText('+', text, attribs, pool));
       charBank.append(text);
       return self;
     },
@@ -2013,18 +2012,22 @@ exports.builder = (oldLen) => {
      * @returns {Builder} this
      */
     remove: (N, L) => {
-      o.opcode = '-';
+      const o = new Op('-');
       o.attribs = '';
       o.chars = N;
       o.lines = (L || 0);
-      assem.append(o);
+      ops.push(o);
       return self;
     },
 
     toString: () => {
-      assem.endDocument();
-      const newLen = oldLen + assem.getLengthChange();
-      return exports.pack(oldLen, newLen, assem.toString(), charBank.toString());
+      /** @type {number} */
+      let lengthChange;
+      const serializedOps = exports.serializeOps((function* () {
+        lengthChange = yield* exports.canonicalizeOps(ops, true);
+      })());
+      const newLen = oldLen + lengthChange;
+      return exports.pack(oldLen, newLen, serializedOps, charBank.toString());
     },
   };
 
@@ -2058,11 +2061,11 @@ exports.makeAttribsString = (opcode, attribs, pool) => {
 exports.subattribution = (astr, start, optEnd) => {
   const attOps = exports.deserializeOps(astr);
   let attOpsNext = attOps.next();
-  const assem = new SmartOpAssembler();
   let attOp = new Op();
-  const csOp = new Op();
+  const csOp = new Op('-');
+  csOp.chars = start;
 
-  const doCsOp = () => {
+  const doCsOp = function* () {
     if (!csOp.chars) return;
     while (csOp.opcode && (attOp.opcode || !attOpsNext.done)) {
       if (!attOp.opcode) {
@@ -2074,27 +2077,22 @@ exports.subattribution = (astr, start, optEnd) => {
         csOp.lines++;
       }
       const opOut = slicerZipperFunc(attOp, csOp, null);
-      if (opOut.opcode) assem.append(opOut);
+      if (opOut.opcode) yield opOut;
     }
   };
 
-  csOp.opcode = '-';
-  csOp.chars = start;
-
-  doCsOp();
-
-  if (optEnd === undefined) {
-    if (attOp.opcode) {
-      assem.append(attOp);
+  const ops = (function* () {
+    yield* doCsOp();
+    if (optEnd === undefined) {
+      if (attOp.opcode) yield attOp;
+      yield* attOps;
+    } else {
+      csOp.opcode = '=';
+      csOp.chars = optEnd - start;
+      yield* doCsOp();
     }
-    for (const attOp of attOps) assem.append(attOp);
-  } else {
-    csOp.opcode = '=';
-    csOp.chars = optEnd - start;
-    doCsOp();
-  }
-
-  return assem.toString();
+  })();
+  return exports.serializeOps(exports.canonicalizeOps(ops, false));
 };
 
 exports.inverse = (cs, lines, alines, pool) => {

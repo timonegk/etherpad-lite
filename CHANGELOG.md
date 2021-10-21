@@ -45,9 +45,11 @@
     * `opAssembler()`: Deprecated in favor of the new `serializeOps()` function.
     * `mergingOpAssembler()`: Deprecated in favor of the new `squashOps()`
       generator function (combined with `serializeOps()`).
-    * `smartOpAssembler()`: The returned object's `appendOpWithText()` method is
-      deprecated without a replacement available to plugins (if you need one,
-      let us know and we can make the private `opsFromText()` function public).
+    * `smartOpAssembler()`: Deprecated in favor of the new `canonicalizeOps()`
+      generator function (combined with `serializeOps()`). Also, the returned
+      object's `appendOpWithText()` method is deprecated without a replacement
+      available to plugins (if you need one, let us know and we can make the
+      private `opsFromText()` function public).
     * Several functions that should have never been public are no longer
       exported: `applyZip()`, `assert()`, `clearOp()`, `cloneOp()`, `copyOp()`,
       `error()`, `followAttributes()`, `opString()`, `stringOp()`,
