@@ -461,7 +461,7 @@ PadDiff.prototype._createDeletionChangeset = function (cs, startAText, apool) {
     }
   }
 
-  return Changeset.checkRep(builder.toString());
+  return builder.build().validate().toString();
 };
 
 // export the constructor

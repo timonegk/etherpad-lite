@@ -537,8 +537,8 @@ function Ace2Inner(editorInfo, cssManagers) {
       lengthChange = yield* Changeset.canonicalizeOps(ops, false);
     })());
     const newLen = oldLen + lengthChange;
-    const changeset =
-        Changeset.checkRep(Changeset.pack(oldLen, newLen, serializedOps, atext.text.slice(0, -1)));
+    const changeset = Changeset.pack(oldLen, newLen, serializedOps, atext.text.slice(0, -1));
+    Changeset.unpack(changeset).validate();
     performDocumentApplyChangeset(changeset);
 
     performSelectionChange(
@@ -1446,7 +1446,7 @@ function Ace2Inner(editorInfo, cssManagers) {
   };
 
   const doRepApplyChangeset = (changes, insertsAfterSelection) => {
-    Changeset.checkRep(changes);
+    Changeset.unpack(changes).validate();
 
     if (Changeset.oldLen(changes) !== rep.alltext.length) {
       const errMsg = `${Changeset.oldLen(changes)}/${rep.alltext.length}`;
