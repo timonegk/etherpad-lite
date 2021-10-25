@@ -50,6 +50,7 @@
       `textLinesMutator()`, `toBaseTen()`, `toSplices()`.
     * `appendATextToAssembler()`: Deprecated in favor of the new
       `opsFromAText()` generator function.
+    * `newOp()`: Deprecated in favor of the new `Op` class.
 
 ### Notable enhancements
 

@@ -85,31 +85,73 @@ exports.numToString = (num) => num.toString(36).toLowerCase();
 
 /**
  * An operation to apply to a shared document.
- *
- * @typedef {object} Op
- * @property {('+'|'-'|'='|'')} opcode - The operation's operator:
- *       - '=': Keep the next `chars` characters (containing `lines` newlines) from the base
- *         document.
- *       - '-': Remove the next `chars` characters (containing `lines` newlines) from the base
- *         document.
- *       - '+': Insert `chars` characters (containing `lines` newlines) at the current position in
- *         the document. The inserted characters come from the changeset's character bank.
- *       - '' (empty string): Invalid operator used in some contexts to signifiy the lack of an
- *         operation.
- * @property {number} chars - The number of characters to keep, insert, or delete.
- * @property {number} lines - The number of characters among the `chars` characters that are
- *     newlines. If non-zero, the last character must be a newline.
- * @property {string} attribs - Identifiers of attributes to apply to the text, represented as a
- *     repeated (zero or more) sequence of asterisk followed by a non-negative base-36 (lower-case)
- *     integer. For example, '*2*1o' indicates that attributes 2 and 60 apply to the text affected
- *     by the operation. The identifiers come from the document's attribute pool. This is the empty
- *     string for remove ('-') operations. For keep ('=') operations, the attributes are merged with
- *     the base text's existing attributes:
- *       - A keep op attribute with a non-empty value replaces an existing base text attribute that
- *         has the same key.
- *       - A keep op attribute with an empty value is interpreted as an instruction to remove an
- *         existing base text attribute that has the same key, if one exists.
  */
+class Op {
+  /**
+   * @param {(''|'='|'+'|'-')} [opcode=''] - Initial value of the `opcode` property.
+   */
+  constructor(opcode = '') {
+    /**
+     * The operation's operator:
+     *   - '=': Keep the next `chars` characters (containing `lines` newlines) from the base
+     *     document.
+     *   - '-': Remove the next `chars` characters (containing `lines` newlines) from the base
+     *     document.
+     *   - '+': Insert `chars` characters (containing `lines` newlines) at the current position in
+     *     the document. The inserted characters come from the changeset's character bank.
+     *   - '' (empty string): Invalid operator used in some contexts to signifiy the lack of an
+     *     operation.
+     *
+     * @type {(''|'='|'+'|'-')}
+     * @public
+     */
+    this.opcode = opcode;
+
+    /**
+     * The number of characters to keep, insert, or delete.
+     *
+     * @type {number}
+     * @public
+     */
+    this.chars = 0;
+
+    /**
+     * The number of characters among the `chars` characters that are newlines. If non-zero, the
+     * last character must be a newline.
+     *
+     * @type {number}
+     * @public
+     */
+    this.lines = 0;
+
+    /**
+     * Identifiers of attributes to apply to the text, represented as a repeated (zero or more)
+     * sequence of asterisk followed by a non-negative base-36 (lower-case) integer. For example,
+     * '*2*1o' indicates that attributes 2 and 60 apply to the text affected by the operation. The
+     * identifiers come from the document's attribute pool.
+     *
+     * For keep ('=') operations, the attributes are merged with the base text's existing
+     * attributes:
+     *   - A keep op attribute with a non-empty value replaces an existing base text attribute that
+     *     has the same key.
+     *   - A keep op attribute with an empty value is interpreted as an instruction to remove an
+     *     existing base text attribute that has the same key, if one exists.
+     *
+     * This is the empty string for remove ('-') operations.
+     *
+     * @type {string}
+     * @public
+     */
+    this.attribs = '';
+  }
+
+  toString() {
+    if (!this.opcode) throw new TypeError('null op');
+    const l = this.lines ? `|${exports.numToString(this.lines)}` : '';
+    return (this.attribs || '') + l + this.opcode + exports.numToString(this.chars);
+  }
+}
+exports.Op = Op;
 
 /**
  * Describes changes to apply to a document. Does not include the attribute pool or the original
@@ -168,8 +210,7 @@ exports.opIterator = (opsStr) => {
   };
   let regexResult = nextRegexMatch();
 
-  const next = (optOp) => {
-    const op = optOp || exports.newOp();
+  const next = (op = new Op()) => {
     if (regexResult[0]) {
       op.attribs = regexResult[1];
       op.lines = exports.parseNum(regexResult[2] || '0');
@@ -205,15 +246,14 @@ const clearOp = (op) => {
 /**
  * Creates a new Op object
  *
+ * @deprecated Use the `Op` class instead.
  * @param {('+'|'-'|'='|'')} [optOpcode=''] - The operation's operator.
  * @returns {Op}
  */
-exports.newOp = (optOpcode) => ({
-  opcode: (optOpcode || ''),
-  chars: 0,
-  lines: 0,
-  attribs: '',
-});
+exports.newOp = (optOpcode) => {
+  warnDeprecated('Changeset.newOp() is deprecated; use the Changeset.Op class instead');
+  return new Op(optOpcode);
+};
 
 /**
  * Copies op1 to op2
@@ -222,7 +262,7 @@ exports.newOp = (optOpcode) => ({
  * @param {Op} [op2] - dest Op. If not given, a new Op is used.
  * @returns op2
  */
-const copyOp = (op1, op2 = exports.newOp()) => Object.assign(op2, op1);
+const copyOp = (op1, op2 = new Op()) => Object.assign(op2, op1);
 
 /**
  * Serializes a sequence of Ops.
@@ -256,7 +296,7 @@ const copyOp = (op1, op2 = exports.newOp()) => Object.assign(op2, op1);
  * @returns {Generator<Op>}
  */
 const opsFromText = function* (opcode, text, attribs = '', pool = null) {
-  const op = exports.newOp(opcode);
+  const op = new Op(opcode);
   op.attribs = exports.makeAttribsString(opcode, attribs, pool);
   const lastNewlinePos = text.lastIndexOf('\n');
   if (lastNewlinePos < 0) {
@@ -445,7 +485,7 @@ exports.smartOpAssembler = () => {
  */
 exports.mergingOpAssembler = () => {
   const assem = exports.opAssembler();
-  const bufOp = exports.newOp();
+  const bufOp = new Op();
 
   // If we get, for example, insertions [xxx\n,yyy], those don't merge,
   // but if we get [xxx\n,yyy,zzz\n], that merges to [xxx\nyyyzzz\n].
@@ -521,10 +561,8 @@ exports.opAssembler = () => {
    * @param {Op} op - Operation to add. Ownership remains with the caller.
    */
   const append = (op) => {
-    serialized += op.attribs;
-    if (op.lines) serialized += `|${exports.numToString(op.lines)}`;
-    serialized += op.opcode;
-    serialized += exports.numToString(op.chars);
+    assert(op instanceof Op, 'argument must be an instance of Op');
+    serialized += op.toString();
   };
 
   const toString = () => serialized;
@@ -968,8 +1006,8 @@ const applyZip = (in1, in2, func) => {
   const iter1 = exports.opIterator(in1);
   const iter2 = exports.opIterator(in2);
   const assem = exports.smartOpAssembler();
-  const op1 = exports.newOp();
-  const op2 = exports.newOp();
+  const op1 = new Op();
+  const op2 = new Op();
   while (op1.opcode || iter1.hasNext() || op2.opcode || iter2.hasNext()) {
     if ((!op1.opcode) && iter1.hasNext()) iter1.next(op1);
     if ((!op2.opcode) && iter2.hasNext()) iter2.next(op2);
@@ -1173,7 +1211,7 @@ exports.composeAttributes = (att1, att2, resultIsMutation, pool) => {
  * @returns {Op} The result of applying `csOp` to `attOp`.
  */
 const slicerZipperFunc = (attOp, csOp, pool) => {
-  const opOut = exports.newOp();
+  const opOut = new Op();
   if (!attOp.opcode) {
     copyOp(csOp, opOut);
     csOp.opcode = '';
@@ -1256,7 +1294,7 @@ exports.mutateAttributionLines = (cs, lines, pool) => {
       const line = mut.removeLines(1);
       lineIter = exports.opIterator(line);
     }
-    if (!lineIter || !lineIter.hasNext()) return exports.newOp();
+    if (!lineIter || !lineIter.hasNext()) return new Op();
     return lineIter.next();
   };
   let lineAssem = null;
@@ -1273,8 +1311,8 @@ exports.mutateAttributionLines = (cs, lines, pool) => {
     lineAssem = null;
   };
 
-  let csOp = exports.newOp();
-  let attOp = exports.newOp();
+  let csOp = new Op();
+  let attOp = new Op();
   while (csOp.opcode || csIter.hasNext() || attOp.opcode || isNextMutOp()) {
     if (!csOp.opcode && csIter.hasNext()) csOp = csIter.next();
     if ((!csOp.opcode) && (!attOp.opcode) && (!lineAssem) && (!(lineIter && lineIter.hasNext()))) {
@@ -1835,7 +1873,7 @@ exports.attribsAttributeValue = (attribs, key, pool) => {
  */
 exports.builder = (oldLen) => {
   const assem = exports.smartOpAssembler();
-  const o = exports.newOp();
+  const o = new Op();
   const charBank = exports.stringAssembler();
 
   const self = {
@@ -1937,8 +1975,8 @@ exports.makeAttribsString = (opcode, attribs, pool) => {
 exports.subattribution = (astr, start, optEnd) => {
   const iter = exports.opIterator(astr);
   const assem = exports.smartOpAssembler();
-  let attOp = exports.newOp();
-  const csOp = exports.newOp();
+  let attOp = new Op();
+  const csOp = new Op();
 
   const doCsOp = () => {
     if (!csOp.chars) return;
@@ -2001,7 +2039,7 @@ exports.inverse = (cs, lines, alines, pool) => {
   let curChar = 0;
   let curLineOpIter = null;
   let curLineOpIterLine;
-  let curLineNextOp = exports.newOp('+');
+  let curLineNextOp = new Op('+');
 
   const unpacked = exports.unpack(cs);
   const csIter = exports.opIterator(unpacked.ops);
@@ -2032,7 +2070,7 @@ exports.inverse = (cs, lines, alines, pool) => {
         curLineOpIter = exports.opIterator(alinesGet(curLine));
       }
       if (!curLineNextOp.chars) {
-        curLineNextOp = curLineOpIter.hasNext() ? curLineOpIter.next() : exports.newOp();
+        curLineNextOp = curLineOpIter.hasNext() ? curLineOpIter.next() : new Op();
       }
       const charsToUse = Math.min(numChars, curLineNextOp.chars);
       func(charsToUse, curLineNextOp.attribs, charsToUse === curLineNextOp.chars &&
@@ -2142,7 +2180,7 @@ exports.follow = (cs1, cs2, reverseInsertOrder, pool) => {
   const hasInsertFirst = exports.attributeTester(['insertorder', 'first'], pool);
 
   const newOps = applyZip(unpacked1.ops, unpacked2.ops, (op1, op2) => {
-    const opOut = exports.newOp();
+    const opOut = new Op();
     if (op1.opcode === '+' || op2.opcode === '+') {
       let whichToDo;
       if (op2.opcode !== '+') {
