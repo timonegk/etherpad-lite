@@ -31,6 +31,20 @@ const AttributePool = require('./AttributePool');
  */
 
 /**
+ * Prints a warning message followed by a stack trace (to make it easier to figure out what code is
+ * using the deprecated function).
+ *
+ * @param {...*} args - Passed to `console.warn`, with a stack trace appended.
+ */
+const warnDeprecated = (...args) => {
+  const err = new Error();
+  if (Error.captureStackTrace) Error.captureStackTrace(err, warnDeprecated);
+  err.name = '';
+  if (err.stack) args.push(err.stack);
+  console.warn(...args);
+};
+
+/**
  * This method is called whenever there is an error in the sync process.
  *
  * @param {string} msg - Just some message
