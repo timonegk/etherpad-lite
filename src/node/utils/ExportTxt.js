@@ -75,11 +75,10 @@ const getTXTFromAtext = (pad, atext, authorColors) => {
         return;
       }
 
-      const iter = Changeset.opIterator(Changeset.subattribution(attribs, idx, idx + numChars));
+      const ops = Changeset.deserializeOps(Changeset.subattribution(attribs, idx, idx + numChars));
       idx += numChars;
 
-      while (iter.hasNext()) {
-        const o = iter.next();
+      for (const o of ops) {
         let propChanged = false;
 
         Changeset.eachAttribNumber(o.attribs, (a) => {

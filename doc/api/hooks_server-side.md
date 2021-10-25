@@ -668,15 +668,10 @@ exports.getLineHTMLForExport = function (hook, context) {
 }
 
 function _analyzeLine(alineAttrs, apool) {
-  var header = null;
-  if (alineAttrs) {
-    var opIter = Changeset.opIterator(alineAttrs);
-    if (opIter.hasNext()) {
-      var op = opIter.next();
-      header = Changeset.opAttributeValue(op, 'heading', apool);
-    }
-  }
-  return header;
+  if (!alineAttrs) return null;
+  const [op] = Changeset.deserializeOps(alineAttrs);
+  if (op == null) return null;
+  return Changeset.opAttributeValue(op, 'heading', apool);
 }
 ```
 

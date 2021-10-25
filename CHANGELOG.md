@@ -39,8 +39,9 @@
     * `readonly`: Deprecated; use the new `readOnly` property instead.
     * `rev`: Deprecated.
   * Changes to the `src/static/js/Changeset.js` library:
-    * `opIterator()`: The unused start index parameter has been removed, as has
-      the unused `lastIndex()` method on the returned object.
+    * `opIterator()`: Deprecated in favor of the new `deserializeOps()`
+      generator function. Also, the unused start index parameter has been
+      removed, as has the unused `lastIndex()` method on the returned object.
     * `smartOpAssembler()`: The returned object's `appendOpWithText()` method is
       deprecated without a replacement available to plugins (if you need one,
       let us know and we can make the private `opsFromText()` function public).
