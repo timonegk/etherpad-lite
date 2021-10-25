@@ -48,6 +48,8 @@
       exported: `applyZip()`, `assert()`, `clearOp()`, `cloneOp()`, `copyOp()`,
       `error()`, `followAttributes()`, `opString()`, `stringOp()`,
       `textLinesMutator()`, `toBaseTen()`, `toSplices()`.
+    * `appendATextToAssembler()`: Deprecated in favor of the new
+      `opsFromAText()` generator function.
 
 ### Notable enhancements
 
