@@ -930,12 +930,18 @@ exports.textLinesMutator = (lines) => {
           Array.prototype.push.apply(curSplice, newLines);
           curLine += newLines.length;
         }
-      } else {
+      } else if (!hasMore()) {
         // there are no additional lines
         // although the line is put into splice, curLine is not increased, because
         // there may be more chars in the line (newline is not reached)
+        // we are inserting at the end of lines. curCol is 0 as curLine is not in splice
+        curSplice.push(text);
+        curCol += text.length;
+      } else {
+        // insert text after curCol
         const sline = putCurLineInSplice();
         if (!curSplice[sline]) {
+          // TODO should never happen now
           console.error('curSplice[sline] not populated, actual curSplice contents is ', curSplice, '. Possibly related to https://github.com/ether/etherpad-lite/issues/2802');
         }
         curSplice[sline] = curSplice[sline].substring(0, curCol) + text +
