@@ -93,7 +93,7 @@ exports.randomTestChangeset = randomTestChangeset;
 
 const randomStringOperation = (numCharsLeft) => {
   let result;
-  switch (randInt(9)) {
+  switch (randInt(11)) {
     case 0:
     {
       // insert char
