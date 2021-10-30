@@ -137,6 +137,55 @@ describe('easysync', function () {
     ['skip', 1, 1, true],
   ], ['banana\n', 'cabbage\n', 'duffle\n']);
 
+  // #2836, #5214, #3560 regressions
+  runMutationTest(8, ['\n'], [
+    ['remove', 1, 1, '\n'],
+    ['insert', 'c', 0],
+  ], ['c']);
+
+  runMutationTest(9, ['\n'], [
+    ['remove', 1, 1, '\n'],
+    ['insert', 'a'],
+    ['insert', 'c\n', 1],
+  ], ['ac\n']);
+
+  runMutationTest(10, ['\n'], [
+    ['remove', 1, 1, '\n'],
+    ['insert', 'a\n', 1],
+    ['insert', 'c'],
+  ], ['a\n', 'c']);
+
+  runMutationTest(11, ['\n', 'fun\n', '\n'], [
+    ['remove', 1, 1, '\n'],
+    ['skip', 4, 1, false],
+    ['remove', 1, 1, '\n'],
+    ['insert', 'c'],
+  ], ['fun\n', 'c']);
+
+  runMutationTest(12, ['\n', 'fun\n', '\n'], [
+    ['remove', 1, 1, '\n'],
+    ['skip', 3, 0, false],
+    ['remove', 2, 2, '\n\n'],
+    ['insert', 'c'],
+  ], ['func']);
+
+  runMutationTest(13, ['\n', 'fun\n', '\n'], [
+    ['remove', 1, 1, '\n'],
+    ['skip', 3, 0, false],
+    ['remove', 2, 2, '\n\n'],
+    ['insert', 'c'],
+    ['insert', 'a\n', 1],
+    ['insert', 'c'],
+  ], ['funca\n', 'c']);
+
+  runMutationTest(14, ['\n', 'fun\n', '\n'], [
+    ['remove', 1, 1, '\n'],
+    ['skip', 2, 0, false],
+    ['remove', 3, 2, 'n\n\n'],
+    ['insert', 'z'],
+  ], ['fuz']);
+
+
   it('mutatorHasMore', async function () {
     const lines = ['1\n', '2\n', '3\n', '4\n'];
     let mu;
